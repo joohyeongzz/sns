@@ -5,15 +5,22 @@
 
 
 
-### ✅ 사용 기술 및 개발 환경
+## ✅ 사용 기술 및 개발 환경
 
 Java, Spring Boot, MySQL, JPA, Redis 등
 
-### ✅ Architecture
+## ✅ Architecture
 
-- M
+- ### MySQL Architecture
+  
+![스크린샷 2024-11-20 185129](https://github.com/user-attachments/assets/1e72af5b-c7b6-492c-9ba2-043228431b40)
 
-### ✅ 주요 기능
+- ### Redis Architecture
+  
+![스크린샷 2024-11-20 190554](https://github.com/user-attachments/assets/e5a556f7-2ff8-4e42-a058-174554f93476)
+
+
+## ✅ 주요 기능
 
 1. 게시글 CRUD
 2. 댓글 CRUD
