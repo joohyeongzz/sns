@@ -101,12 +101,14 @@ public class FeedService {
             try {
                 addRegularUserFeed(postWithDate, followerIds, post.getId(), 500);
             } catch (RedisConnectionFailureException e) {
-               throw e;
+                throw e;
             }
             return null;
         });
         retry.executeSupplier(supplier);
     }
+
+
 
     public void addRegularUserFeed(String postWithDate, List<Long> followerIds, Long postId, int batchSize)
             throws RedisConnectionFailureException {
@@ -141,7 +143,7 @@ public class FeedService {
         long start = System.currentTimeMillis();
         FeedDATA defaultFeed = getPostIdWithCacheData(followerId, page, size);
         long end = System.currentTimeMillis();
-        log.info("getPostIdWithCacheData 메서드 : {}ms", end-start);
+        log.info("getPostIdWithCacheData 메서드 : {}ms", end - start);
 
         log.info("feedDAta : {}", defaultFeed);
 
@@ -169,7 +171,7 @@ public class FeedService {
 
             if (postCache == null) {
                 Post post = postRepository.findById(postId).orElse(null);
-                if(post == null) {
+                if (post == null) {
                     notFoundPostList.add(postId);
                 } else {
                     List<String> urls = createUrls(post.getMedia());
@@ -185,7 +187,7 @@ public class FeedService {
                 }
             }
 
-            if(postCache != null) {
+            if (postCache != null) {
 
                 if (likeIndex == null) {
                     likeIndex = postRepository.countByLikeIndex(postId);
@@ -210,12 +212,12 @@ public class FeedService {
             }
         }
 
-        if(!notFoundPostList.isEmpty()) {
-            deleteFeed(followerId,notFoundPostList);
+        if (!notFoundPostList.isEmpty()) {
+            deleteFeed(followerId, notFoundPostList);
         }
 
-        if(feed.isEmpty() && (long) size * page < defaultFeed.getTotalElements()) {
-            Page<FeedDetailResponse> newFeed = getFeed(followerId,page+1,size);
+        if (feed.isEmpty() && (long) size * page < defaultFeed.getTotalElements()) {
+            Page<FeedDetailResponse> newFeed = getFeed(followerId, page + 1, size);
             return newFeed;
         }
 
@@ -422,7 +424,7 @@ public class FeedService {
                 postIds.add(postId);
             }
 
-            if(!isRead) {
+            if (!isRead) {
                 updatePostIds.add(postId);
             }
 
@@ -431,7 +433,7 @@ public class FeedService {
         log.info("postIds : {}", postIds);
         log.info("removePostIds : {}", removePostIds);
 
-        if(!updatePostIds.isEmpty()) {
+        if (!updatePostIds.isEmpty()) {
             log.info("타임스탬프 업데이트 실행합니다.");
             updateTimeStamp(updatePostIds, userId);
         }
@@ -470,7 +472,6 @@ public class FeedService {
 //                .commentIndexList(commentCountList)
 //                .build();
     }
-
 
 
     private Page<FeedDetailResponse> getFeedFromNewInfluencerPosts(long followerId, List<Long> influencerIds, int page, int size) {
@@ -550,9 +551,9 @@ public class FeedService {
 
 
         for (Long postId : updatePostIds) {
-                String updatedPost = formatPostForRedis(postId, newTimeStamp, true);
-                feedRedisTemplate.opsForZSet().removeRangeByScore(feedKey, postId, postId);
-                feedRedisTemplate.opsForZSet().add(feedKey, updatedPost, postId);
+            String updatedPost = formatPostForRedis(postId, newTimeStamp, true);
+            feedRedisTemplate.opsForZSet().removeRangeByScore(feedKey, postId, postId);
+            feedRedisTemplate.opsForZSet().add(feedKey, updatedPost, postId);
         }
     }
 

@@ -21,7 +21,6 @@ import java.util.Set;
 @Getter
 @Setter
 @EntityListeners(AuditingEntityListener.class)
-@ToString
 public class Post {
 
     @Id

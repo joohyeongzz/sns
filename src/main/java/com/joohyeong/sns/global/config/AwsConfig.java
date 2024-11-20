@@ -15,6 +15,7 @@ public class AwsConfig {
     String accessKeyId = System.getenv("key");
     String secretAccessKey = System.getenv("keys");
 
+
     @Value("${aws.s3.region}")
     private String region;
 

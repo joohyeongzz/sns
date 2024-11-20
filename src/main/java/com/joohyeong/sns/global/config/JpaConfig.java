@@ -24,11 +24,10 @@ public class JpaConfig {
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
-        em.setPackagesToScan("com.joohyeong.sns"); // Update this to your entity package
+        em.setPackagesToScan("com.joohyeong.sns");
 
         HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
         vendorAdapter.setShowSql(true);
-        vendorAdapter.setGenerateDdl(true);
         em.setJpaVendorAdapter(vendorAdapter);
 
         Properties properties = new Properties();
@@ -36,7 +35,6 @@ public class JpaConfig {
         properties.setProperty("hibernate.format_sql", "true");
         properties.setProperty("hibernate.use_sql_comments", "true");
 
-        // Add these properties for read/write separation
 
         properties.setProperty("hibernate.query.fail_on_pagination_over_collection_fetch", "true");
 

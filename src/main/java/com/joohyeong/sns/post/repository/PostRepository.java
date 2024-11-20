@@ -66,7 +66,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     @Query("SELECT p FROM Post p " +
             "JOIN FETCH p.media " +
-            "LEFT JOIN FETCH p.comments " +
             "LEFT JOIN FETCH p.likes " +
             "WHERE p.user.id = :userId")
     List<Post> findPostListByUserId(Long userId);

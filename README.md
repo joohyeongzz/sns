@@ -5,15 +5,23 @@
 
 
 
-### ✅ 사용 기술 및 개발 환경
+## ✅ 사용 기술 및 개발 환경
 
-Java, Spring Boot, MySQL, JPA, IntelliJ, Redis 등
+Java, Spring Boot, MySQL, JPA, Redis 등
 
-### ✅ Architecture
+## ✅ Architecture
 
-- M
+- ### MySQL Architecture
+  
+![스크린샷 2024-11-20 185129](https://github.com/user-attachments/assets/1e72af5b-c7b6-492c-9ba2-043228431b40)
 
-### ✅ 주요 기능
+- ### Redis Architecture
+  
+![스크린샷 2024-11-20 190554](https://github.com/user-attachments/assets/e5a556f7-2ff8-4e42-a058-174554f93476)
+
+
+
+## ✅ 주요 기능
 
 1. 게시글 CRUD
 2. 댓글 CRUD
@@ -23,7 +31,7 @@ Java, Spring Boot, MySQL, JPA, IntelliJ, Redis 등
 
 ### ✅ 주요 고려 사항
 
-# Mysql master - slave
+# MySQL master - slave
 대규모 서비스에서 단일 데이터베이스의 한계를 극복하기 위한 방법으로, 쓰기 작업은 마스터 DB가 담당하고 읽기 작업은 여러 슬레이브 DB로 분산하는 구조를
 구성했습니다. 또한 라운드로빈 방식으로 로드밸런싱하여 읽기 요청 부하를 분산하였습니다.
 
@@ -31,16 +39,17 @@ JPA와 DB를 연동할 때 master-slave 요청을 구분하기 위해 두 가지
 
 일반적으로 사용되는 Transactional(readonly=true/false) 방식은 구현이 단순하고 코드 중복이 없으며, 적은 수의 빈으로 메모리가 효율적이고 JPA 영속성 컨텍스트 최적화가 자동으로 적용되는 장점이 있지만, 트랜잭션 속성 누락 시 의도치 않은 Master DB 접근이 가능하고 코드만으로는 어떤 DB를 사용하는지 파악이 어려우며 런타임에서야 DB 접근 오류를 발견할 수 있다는 단점이 있습니다. 
 
-반면 Repository 물리적 분리 방식은 컴파일 타임에 잘못된 DB 접근을 방지하고 코드만으로도 DB 접근 의도 파악이 명확하며 각 DB에 최적화된 설정을 적용할 수 있지만, Repository 코드 중복이 발생하고 더 많은 설정 코드가 필요하며 빈 개수 증가로 인한 메모리 사용량 증가와 패키지 구조가 복잡해진다는 단점이 있습니다.
+반면 Repository 물리적 분리 방식은 컴파일 타임에 잘못된 DB 접근을 방지하고 코드만으로도 DB 접근 의도 파악이 명확하며 각 DB에 최적화된 설정을 적용할 수 있지만, Repository 코드 중복이 발생하고,
+읽기 - 쓰기 데이터소스마다 EntityManagerFactory와 TransactionManager를 별도로 설정해야 했기에 빈 객체가 늘어나면서 메모리 사용량이 증가될 수 있었습니다.
 
 저는 Transactional(readonly=true/false) 방식으로 요청을 구분하기로 결정했습니다. 코드 중복이 없어 유지보수가 쉽고 휴먼 에러 가능성이 작으며, JPA의
-읽기 전용 최적화(스냅샷 미생성, 더티 체킹 스킵)를 자연스럽게 활용할 수 있고, AOP를 통한 트랜잭션 처리로 비즈니스 로직과 인프라 로직이 깔끔하게 분리됩니
-다.
+읽기 전용 최적화(스냅샷 미생성, 더티 체킹 스킵)를 자연스럽게 활용할 수 있다는 장점이 명확했습니다.
 
 Repository 분리 방식은 명시성이라는 장점이 있지만, 실제로 트랜잭션 속성 누락으로 인한 문제는 테스트 단계에서 충분히 발견할 수 있고, CI/CD 파이프라
 인에서의 테스트 자동화로 런타임 오류를 사전에 방지할 수 있으며, 모니터링과 로깅을 통해 DB 접근 패턴을 추적할 수 있습니다. 결과적으로 Repository 분리는
 실제 문제를 해결하기 위한 비용이 이점보다 크고, 패키지 구조 복잡화와 빈 증가로 인한 개발 생산성 저하가 발생하므로, "과도한 엔지니어링은 좋은 엔지니어링
 이 아니다"라는 관점에서 Transactional(readonly=true/false) 방식이 더 현명한 선택이라고 생각했습니다.
+
 # Redis
 분산 환경에서 캐싱 전략을 선택할 때 로컬 캐시와 글로벌 캐시를 비교하였습니다.
 
@@ -110,6 +119,34 @@ Redis 기반 피드 시스템 운영 중 네트워크 통신으로 인한 성능
 게시글 작성 시에는 모든 팔로워의 피드 업데이트 명령을 파이프라인에 누적했다가 한 번에 실행하는 방식으로 변경했습니다. 
 
 이러한 개선을 통해 Redis와의 네트워크 통신 횟수를 대폭 줄일 수 있었습니다.
+
+    // 10000명의 팔로워를 가진 유저
+        List<Long> followerIds = followRepository.findFollowerUserIds(1000220L);
+
+        long start = System.currentTimeMillis();
+        for (Long followerId : followerIds) {
+            stringRedisTemplate.opsForZSet().add("feed:userId" + followerId, "1000:2024111111:0", 1000);
+        }
+
+        System.out.println("파이프라이닝 X 총 피드 생성 소요 시간 :" + (System.currentTimeMillis() - start) + "ms");
+
+        start = System.currentTimeMillis();
+
+        List<Object> result = stringRedisTemplate.executePipelined(
+                new RedisCallback<Object>() {
+                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
+                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
+                        for (long followerId : followerIds) {
+                            stringRedisConn.zAdd("feed:userId" + followerId, 1000, "1000:2024111111:0");
+                        }
+                        return null;
+                    }
+                });
+
+        System.out.println("파이프라이닝 O 총 피드 생성 소요 시간 :" + (System.currentTimeMillis() - start) + "ms");
+
+![스크린샷 2024-11-20 203829](https://github.com/user-attachments/assets/7cb93f5e-0816-419f-a18b-34c0fd6f1905)
+
 ### 비동기 피드 생성 및 복구 전략
 기존에는 게시글 등록과 피드 생성이 동기적으로 처리되고 있었습니다.
 하지만 게시글 등록과 피드 생성은 서로 다른 책임을 가지고 있으며, 게시글의 생명주기가 피드의 전파 성공 여부에 종속될 이유가 없었습니다.
@@ -137,8 +174,8 @@ Circuit이 Open 상태일 때는 스케줄러를 중지하여 불필요한 재�
 또한 Close 상태에서 실패 피드가 없을 경우 스케줄러를 중지하여 불필요한 DB 조회를 방지했습니다. 
 이러한 전략을 통해 시스템 부하를 최소화하면서도 안정적인 피드 생성 복구가 가능했습니다.
 
-결과적으로 게시글 등록과 피드 생성의 책임을 분리하여 사용자는 피드 생성 실패와 관계없이 즉시 게시글 등록 완료 응답을 받을 수 있게 되어 응답성이 개선되었
-고, 시스템 리소스를 효율적으로 사용하면서도 모든 피드가 팔로워들에게 전파될 수 있도록 하여 게시글 작성자와 팔로워 모두의 사용자 경험을 개선하였습니다.
+결과적으로 게시글 등록과 피드 생성의 책임을 분리하여 사용자는 피드 생성 실패와 관계없이 즉시 게시글 등록 완료 응답을 받을 수 있게 되어 응답성이 개선되었고,
+시스템 리소스를 효율적으로 사용하면서도 모든 피드가 팔로워들에게 전파될 수 있도록 하여 게시글 작성자와 팔로워 모두의 사용자 경험을 개선하였습니다.
 
 ### 인플루언서 게시글로 인한 대규모 피드 생성 문제 개선
 많은 팔로워를 가진 인플루언서가 게시글을 등록 시 팔로워의 수만큼 피드를 저장해 발생하는 메모리 사용량 급증 문제를 해결하기 위한 최적화를 시도했습니다.
@@ -237,3 +274,12 @@ CPU, 메모리 사용량, API 응답 시간, 에러율, JVM 힙 메모리, 스�
 특히 AlertManager를 연동하여 크리티컬한 이슈 발생 시 즉각적인 대응이 가능하게 하였습니다. 
 CPU 사용률이 임계치를 초과하거나, 힙 메모리 부족, 높은 에러율 발생, 데이터베이스 커넥션 풀 고갈, Redis 메모리 부족, 서버 다운 등 미리 정의한 alert_rules 에 따라 Gmail을 통해 자동으로 경고 알림을 받을 수 있도록 구성했습니다.
 이를 통해 장애 상황을 사전에 감지하고 빠르게 대응할 수 있는 체계를 마련했으며, 문제 발생 시 효율적인 원인 분석이 가능해졌습니다.
+
+### ✅ 기타 고려 사항
+
+- 로컬 환경에서의 분산 아키텍처 구성을 위한 docker-compose 활용
+- 조회 쿼리의 실행 계획 확인, 적절한 인덱스를 통한 조회 성능 개선
+- Fetch join을 통한 JPA의 N+1 문제 해결
+- @Valid 어노테이션을 통한 @RequestBody 유효성 검증
+- 엔티티 -> DTO , DTO - 엔티티 변환 로직은 별도의 mapper 클래스로 분리하여 관심사를 명확히 구분
+- 전역 예외 핸들러와 커스텀 에러 코드 및 예외를 활용하여 일관된 에러 응답을 반환

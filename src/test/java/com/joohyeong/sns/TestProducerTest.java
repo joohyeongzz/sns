@@ -15,9 +15,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.StringRedisConnection;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -28,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
+
 class TestProducerTest {
 
     @Autowired
@@ -37,10 +44,6 @@ class TestProducerTest {
     private UserService userService;
     @Autowired
     private FeedService feedService;
-    @Autowired
-    private UserRepository UserRepository;
-    @Autowired
-    private PostRepository PostRepository;
 
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
@@ -52,12 +55,19 @@ class TestProducerTest {
     private RedisTemplate postRedisTemplate;
     @Autowired
     private PostRepository postRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Qualifier("feedRedisTemplate")
+    @Autowired
+    private RedisTemplate<String,String> feedRedisTemplate;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
 
     @Test
     void testFollowe() {
-        for(int i = 1; i<10000; i++) {
-            userService.follow((long)i,1000200L);
+        for (int i = 1; i < 10000; i++) {
+            userService.follow((long) i, 1000200L);
         }
 
     }
@@ -84,9 +94,9 @@ class TestProducerTest {
         Page<FeedDetailResponse> feed = null;
         try {
             long start = System.currentTimeMillis();
-            feed = feedService.getFeed(447L,1,5);
+            feed = feedService.getFeed(447L, 1, 5);
             long end = System.currentTimeMillis();
-            System.out.println((end-start) +"ms");
+            System.out.println((end - start) + "ms");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -94,17 +104,35 @@ class TestProducerTest {
     }
 
 
-
     @Test
     @Transactional
-    void testGetFeed2() {
+    void testAddFeed() {
+        // 10000명의 팔로워를 가진 유저
+        List<Long> followerIds = followRepository.findFollowerUserIds(1000220L);
 
-            long start = System.currentTimeMillis();
-            feedService.getPostIdWithCacheData(447L,1,5);
-            long end = System.currentTimeMillis();
-            System.out.println((end-start) +"ms");
+        long start = System.currentTimeMillis();
+        for (Long followerId : followerIds) {
+            stringRedisTemplate.opsForZSet().add("feed:userId" + followerId, "1000:2024111111:0", 1000);
+        }
+        System.out.println("파이프라이닝 X 총 피드 생성 소요 시간 :" + (System.currentTimeMillis() - start) + "ms");
+
+        start = System.currentTimeMillis();
+
+        List<Object> result = stringRedisTemplate.executePipelined(
+                new RedisCallback<Object>() {
+                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
+                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
+                        for (long followerId : followerIds) {
+                            stringRedisConn.zAdd("feed:userId" + followerId, 1000, "1000:2024111111:0");
+                        }
+                        return null;
+                    }
+                });
+
+        System.out.println("파이프라이닝 O 총 피드 생성 소요 시간 :" + (System.currentTimeMillis() - start) + "ms");
 
     }
+
 
 
     @Test
@@ -112,9 +140,9 @@ class TestProducerTest {
     void testGetFeed3() {
 
         long start = System.currentTimeMillis();
-        feedService.getPostIdWithCacheData2(447L,1,5);
+        feedService.getPostIdWithCacheData2(447L, 1, 5);
         long end = System.currentTimeMillis();
-        System.out.println((end-start) +"ms");
+        System.out.println((end - start) + "ms");
 
     }
 
@@ -134,20 +162,10 @@ class TestProducerTest {
     }
 
 
-
-@Test
-void testGetPostDetail() {
-    FeedDetailResponse dto = postService.getPostDetail(12345L);
-    System.out.println(dto);
-}
-
-
     @Test
-    @Transactional
-    void testAddFeed() {
-        Post post = PostRepository.findById(1L).orElse(null);
-        post.setUser(UserRepository.findById(20L).orElse(null));
-        feedService.addFeed(post);
+    void testGetPostDetail() {
+        FeedDetailResponse dto = postService.getPostDetail(12345L);
+        System.out.println(dto);
     }
 
 
@@ -166,7 +184,7 @@ void testGetPostDetail() {
     @Test
     void testRegisterUser() {
         UserRegisterRequest dto = new UserRegisterRequest("asd", "joohyeongzz@naver.com", "asd");
-        for(int i = 0; i<20; i++) {
+        for (int i = 0; i < 20; i++) {
             userService.registerUser(dto);
         }
 
@@ -209,7 +227,6 @@ void testGetPostDetail() {
 
         System.out.println(clusterInfo);
     }
-
 
 
 }
