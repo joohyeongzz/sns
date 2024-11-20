@@ -7,7 +7,7 @@
 
 ### ✅ 사용 기술 및 개발 환경
 
-Java, Spring Boot, MySQL, JPA, IntelliJ, Redis 등
+Java, Spring Boot, MySQL, JPA, Redis 등
 
 ### ✅ Architecture
 
