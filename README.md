@@ -20,6 +20,7 @@ Java, Spring Boot, MySQL, JPA, Redis 등
 ![스크린샷 2024-11-20 190554](https://github.com/user-attachments/assets/e5a556f7-2ff8-4e42-a058-174554f93476)
 
 
+
 ## ✅ 주요 기능
 
 1. 게시글 CRUD
@@ -126,6 +127,7 @@ Redis 기반 피드 시스템 운영 중 네트워크 통신으로 인한 성능
         for (Long followerId : followerIds) {
             stringRedisTemplate.opsForZSet().add("feed:userId" + followerId, "1000:2024111111:0", 1000);
         }
+
         System.out.println("파이프라이닝 X 총 피드 생성 소요 시간 :" + (System.currentTimeMillis() - start) + "ms");
 
         start = System.currentTimeMillis();
