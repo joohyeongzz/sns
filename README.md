@@ -52,10 +52,9 @@ Repository 분리 방식은 명시성이라는 장점이 있지만, 실제로 �
 이 아니다"라는 관점에서 Transactional(readonly=true/false) 방식이 더 현명한 선택이라고 생각했습니다.
 
   
-  // 트랜잭션의 읽기 전용 속성을 통한 데이터 소스 구분
-  protected Object determineCurrentLookupKey() {
+    // 트랜잭션의 읽기 전용 속성을 통한 데이터 소스 구분
+    protected Object determineCurrentLookupKey() {
         boolean isReadOnly = TransactionSynchronizationManager.isCurrentTransactionReadOnly();
-
         if (isReadOnly && slaveCount > 0) {
             int idx = counter.getAndIncrement() % slaveCount;
             return "slave" + idx;
@@ -63,27 +62,25 @@ Repository 분리 방식은 명시성이라는 장점이 있지만, 실제로 �
         return "master";
     }
 
-  // 레포지토리 패키지를 분리하여 데이터 소스 구분, 읽기와 쓰기 각각의 엔티티 매니저 팩토리와 트랜잭션 매니저를 초기화해야 함으로 코드 복잡도가 늘어나고 빈 객체로 인해 메모리 사용량이 증
-   @Bean("writeEntityManagerFactory")
+    // 레포지토리 패키지를 분리하여 데이터 소스 구분,
+    읽기와 쓰기 각각의 엔티티 매니저 팩토리와 트랜잭션 매니저를 초기화해야 함으로 코드 복잡도가 늘어나고 빈 객체로 인해 메모리 사용량이 증
+    @Bean("writeEntityManagerFactory")
     @Primary
     public LocalContainerEntityManagerFactoryBean writeEntityManagerFactory(EntityManagerFactoryBuilder builder) {
-        Map<String, Object> props = hibernateProperties.determineHibernateProperties(jpaProperties.getProperties(), new HibernateSettings());
-
-        return builder.dataSource(writeDataSource)
-                .packages("com.joohyeong.sns")
-                .persistenceUnit("write")
-                .properties(props)
-                .build();
+    Map<String, Object> props = hibernateProperties.determineHibernateProperties(jpaProperties.getProperties(), new HibernateSettings());
+    return builder.dataSource(writeDataSource)
+            .packages("com.joohyeong.sns")
+            .persistenceUnit("write")
+            .properties(props)
+            .build();
     }
-
-     
     @Bean("writeTransactionManager")
     @Primary
     public PlatformTransactionManager writeTransactionManager(
-            @Qualifier("writeEntityManagerFactory") EntityManagerFactory writeEntityManagerFactory) {
-        JpaTransactionManager tm = new JpaTransactionManager();
-        tm.setEntityManagerFactory(writeEntityManagerFactory);
-        return tm;
+        @Qualifier("writeEntityManagerFactory") EntityManagerFactory writeEntityManagerFactory) {
+    JpaTransactionManager tm = new JpaTransactionManager();
+    tm.setEntityManagerFactory(writeEntityManagerFactory);
+    return tm;
     }
     
 # Redis
