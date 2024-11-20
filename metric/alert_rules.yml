@@ -1,0 +1,78 @@
+groups:
+  - name: critical_alerts
+    rules:
+      # Spring Actuator
+      - alert: CPU 사용률 높음
+        expr: process_cpu_usage > 0.8
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}의 CPU 사용률 높음"
+          description: "CPU 사용률이 5분 동안 80% 이상입니다. 현재 값: {{ $value | humanizePercentage }}"
+
+      - alert: 메모리 사용률 높음
+        expr: sum(jvm_memory_used_bytes) / sum(jvm_memory_max_bytes) > 0.8
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}의 메모리 사용률 높음"
+          description: "메모리 사용률이 5분 동안 80% 이상입니다. 현재 값: {{ $value | humanizePercentage }}"
+
+      # MySQL Exporter
+      - alert: MySQL 서버 다운
+        expr: mysql_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}의 MySQL 서버 다운"
+          description: "MySQL 서버가 5분 이상 다운되었습니다."
+
+      - alert: MySQL 스레드수 과다
+        expr: mysql_global_status_threads_running > 30
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}의 MySQL 실행 중인 스레드 수 높음"
+          description: "5분 동안 30개 이상의 스레드가 실행 중입니다. 현재 스레드 수: {{ $value }}"
+
+      # Redis Exporter
+      - alert: Redis 서버 다운
+        expr: redis_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}의 Redis 서버 다운"
+          description: "Redis 서버가 5분 이상 다운되었습니다."
+
+      - alert: Redis메모리부족
+        expr: redis_memory_used_bytes / redis_total_system_memory_bytes > 0.8
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }}의 Redis 메모리 부족"
+          description: "Redis가 시스템 메모리의 80% 이상을 사용 중입니다. 현재 사용률: {{ $value | humanizePercentage }}"
+
+      # Kafka Exporter
+      - alert: Kafka브로커오프라인
+        expr: kafka_brokers == 1
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka 브로커 오프라인"
+          description: "5분 이상 온라인 상태인 Kafka 브로커가 없습니다. 현재 브로커 수: {{ $value }}"
+
+      - alert: Kafka토픽복제부족
+        expr: kafka_topic_partition_under_replicated_partition > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka 토픽 복제 부족"
+          description: "{{ $labels.topic }} 토픽의 파티션이 10분 이상 적절히 복제되지 않고 있습니다. 현재 복제 부족 파티션 수: {{ $value }}"

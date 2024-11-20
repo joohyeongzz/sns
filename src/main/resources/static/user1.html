@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User 1 Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.0/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+<h2>User 1</h2>
+<div id="chat-messages"></div>
+<input type="text" id="message-input" placeholder="메시지를 입력하세요">
+<button onclick="sendMessage()">전송</button>
+
+<script>
+    var stompClient = null;
+    var userId = 1;
+
+    function connect() {
+        var socket = new WebSocket('ws://localhost:8080/ws-chat');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function(frame) {
+            console.log('Connected: ' + frame);
+            stompClient.subscribe('/topic/messages/' + userId, function(message) {
+                showMessage(JSON.parse(message.body));
+            });
+        });
+    }
+
+    function sendMessage() {
+        var messageContent = document.getElementById('message-input').value;
+        if(stompClient && stompClient.connected) {
+            var chatMessage = {
+                senderId: userId,
+                receiverId: 2,  // User 2의 ID
+                content: messageContent
+            };
+            stompClient.send("/app/chat", {}, JSON.stringify(chatMessage));
+            document.getElementById('message-input').value = '';
+        }
+    }
+
+    function showMessage(message) {
+        var messageElement = document.createElement('div');
+        messageElement.textContent = (message.senderId == userId ? "나" : "상대방") + ": " + message.content;
+        document.getElementById('chat-messages').appendChild(messageElement);
+    }
+
+    connect();
+</script>
+</body>
+</html>

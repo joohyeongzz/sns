@@ -1,0 +1,20 @@
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'joohyeongzz81@gmail.com'
+  smtp_auth_username: 'joohyeongzz81@gmail.com'
+  smtp_auth_identity: 'joohyeongzz81@gmail.com'
+  smtp_auth_password: 'zdgn qgmq hqpf tqph'  # 여기에 생성한 앱 비밀번호를 입력하세요
+  smtp_require_tls: true
+
+route:
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  receiver: 'email-notifications'
+
+receivers:
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'joohyeongzz81@gmail.com'
+        send_resolved: true
