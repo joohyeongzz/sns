@@ -26,7 +26,8 @@ Java, Spring Boot, MySQL, JPA, Redis 등
 1. 게시글 CRUD
 2. 댓글 CRUD
 3. 게시글 좋아요
-4. 피드 생성
+4. 피드 생성 및 조회
+5. 유저 간 팔로잉
 
 
 ### ✅ 주요 고려 사항
