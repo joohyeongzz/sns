@@ -127,11 +127,6 @@ class TestProducerTest {
     }
 
 
-
-
-
-
-
     @Test
     void testGetPostList() {
         List<PostThumbnailResponse> dtoList = postService.getPostThumbnail(12345L);
@@ -152,7 +147,7 @@ void testGetPostDetail() {
     void testAddFeed() {
         Post post = PostRepository.findById(1L).orElse(null);
         post.setUser(UserRepository.findById(20L).orElse(null));
-//        feedService.addFeed(post);
+        feedService.addFeed(post);
     }
 
 

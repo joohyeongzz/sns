@@ -1,10 +1,4 @@
 package com.joohyeong.sns.post.service;
-
-
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.joohyeong.sns.global.FailedMessageRepository;
-import com.joohyeong.sns.global.S3Service;
 import com.joohyeong.sns.global.exception.GlobalException;
 import com.joohyeong.sns.post.domain.Media;
 import com.joohyeong.sns.post.domain.Post;
