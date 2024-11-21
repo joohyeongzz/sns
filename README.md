@@ -17,12 +17,12 @@ Java, Spring Boot, MySQL, JPA, Redis 등
 
 - ### Redis Architecture
   
-![스크린샷 2024-11-21 122509](https://github.com/user-attachments/assets/c8c77fce-7237-4492-8fda-7617179a3f14)
+![스크린샷 2024-11-21 123352](https://github.com/user-attachments/assets/b52c7731-3d37-4538-94bf-8bb71c8054a6)
+
 
 - ### Monitoring Architecture
-
-![스크린샷 2024-11-21 123352](https://github.com/user-attachments/assets/5e5f759b-5c3b-4dc4-a831-1a3c524dcb66)
-
+- 
+![스크린샷 2024-11-21 120914](https://github.com/user-attachments/assets/dee07ddf-c186-44a8-aafd-c9876fce83c4)
 
 
 ## ✅ 주요 기능
