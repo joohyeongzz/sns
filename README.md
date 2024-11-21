@@ -82,7 +82,7 @@ RDB는 디스크 I/O로 인한 응답 지연이 있고 영속성에 초점이 �
 이에 피드에 저장되는 값은 게시글의 id만 저장하되, 게시글 캐시는 따로 저장하여 메모리를 효율적으로 관리하였습니다.
 피드는 Sorted Set 자료구조를 활용하여 postId를 score로 사용함으로써 자동 내림차순 정렬되도록 구현했습니다.
 
-![스크린샷 2024-11-21 124243](https://github.com/user-attachments/assets/c08dcfc0-6afc-46b2-a540-440256bcbb22)
+![스크린샷 2024-11-21 124351](https://github.com/user-attachments/assets/254ccda4-ffc9-4156-beb3-e2bb66508360)
 
 
 - ### 피드 생명주기 관리 방법
