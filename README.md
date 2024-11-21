@@ -21,7 +21,7 @@ Java, Spring Boot, MySQL, JPA, Redis 등
 
 
 - ### Monitoring Architecture
-- 
+  
 ![스크린샷 2024-11-21 120914](https://github.com/user-attachments/assets/dee07ddf-c186-44a8-aafd-c9876fce83c4)
 
 
