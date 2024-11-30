@@ -161,35 +161,102 @@ RTT가 증가하면서 네트워크 병목이 발생할 수 있습니다.
 
 ![스크린샷 2024-11-20 203829](https://github.com/user-attachments/assets/7cb93f5e-0816-419f-a18b-34c0fd6f1905)
 
-- ### 비동기 피드 생성 및 복구 전략
+- ### AOP를 활용한 파이프라인 중복 코드 최소화
+
+파이프라인을 활용한 메서드에는 팔로워 수만큼 피드를 생성하거나, 피드에서 조회한 postId로 캐시를 조회하는 등의 작업이 포함됩니다.
+이러한 과정에서 파이프라인 코드가 중복되어 유지보수에 어려움이 있었습니다.
+
+    // 피드 생성
+        List<Object> result = stringRedisTemplate.executePipelined(
+                new RedisCallback<Object>() {
+                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
+                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
+                        for (long followerId : followerIds) {
+                            stringRedisConn.zAdd(generateFeedKey(followerId), postId, feedValue);
+                        }
+                        return null;
+                    }
+                });
+                
+    // 캐시 조회
+        List<Object> result = stringRedisTemplate.executePipelined(
+                new RedisCallback<Object>() {
+                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
+                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
+                        for (Long postId : postIds) {
+                            stringRedisConn.get("postId:" + postId);
+                        }
+                        return null;
+                    }
+                });
+    
+
+이를 해결하기 위해, AOP를 활용하여 중복 코드를 최소화하고 횡단 관심사를 분리하는 방법을 채택했습니다.
+
+@RedisPipeline이라는 커스텀 어노테이션을 정의하여, 해당 어노테이션이 적용된 메서드에서 파이프라인 처리를 자동으로 수행하도록 했습니다.
+
+AOP 로직은 파이프라인을 열고, 커넥션을 ThreadLocal을 이용해 connectionHolder에 저장합니다. 메서드 실행 시, 커넥션은 connectionHolder에서 가져와 명령어를 실행합니다.
+
+
+    // AOP 로직
+    @Around("@annotation(RedisPipeline)")
+    private Object executeWithPipeline(ProceedingJoinPoint joinPoint) {
+        List<Object> results = stringRedisTemplate.executePipelined(
+                new RedisCallback<Object>() {
+                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
+                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
+                        try {
+                            RedisPipelineContext.setConnection(stringRedisConn);
+                            return joinPoint.proceed();
+                        } catch (Throwable throwable) {
+                            throw new RuntimeException("Pipeline execution failed", throwable);
+                        } finally {
+                            RedisPipelineContext.clear();
+                        }
+                    }
+                });
+        return results;
+    }
+
+    // 피드 생성
+    @RedisPipeline
+    public void addFeedInRedisPipeLine(List<Long> followerIds, long postId, String feedValue) {
+        StringRedisConnection connection = RedisPipelineContext.getConnection();
+        for (Long followerId : followerIds) {
+            connection.zAdd(generateFeedKey(followerId), postId, feedValue);
+        }
+    }
+
+    // 캐시 조회
+    @RedisPipeline
+    public List<Object> getCachedPosts(List<Long> postIds){
+        StringRedisConnection connection = RedisPipelineContext.getConnection();
+        for (Long postId : postIds) {
+             connection.get("postId:"+postId);
+        }
+        return null;
+    }
+    
+이로써 파이프라인 처리가 필요한 로직을 재사용 가능하게 만들고, 중복 코드를 제거하여 코드의 유지보수성을 높였습니다.
+
+- ### 비동기 피드 생성
+
 기존에는 게시글 등록과 피드 생성이 동기적으로 처리되고 있었습니다.
 하지만 게시글 등록과 피드 생성은 서로 다른 책임을 가지고 있으며, 게시글의 생명주기가 피드의 전파 성공 여부에 종속될 이유가 없었습니다.
 결과적으로 피드 생성이 게시글 등록에 영향을 주지 않도록 할 필요가 있었습니다.
 
-비동기 처리 방식으로 Async, WebFlux, 메시지 큐 등을 검토했습니다. WebFlux는 전체 시스템을 리액티브로 구성해야 했으며, 메시지 큐는 모놀리틱 아키텍
-처에서 불필요한 인프라 비용이 발생했습니다. @Async와 CompletableFuture를 비교했을 때, @Async는 메서드 단위의 비동기 처리만 가능하고 재시도 로직
-이 메서드 내부에 침투하게 되어 책임 분리가 어려웠습니다. 반면 CompletableFuture는 비동기 작업과 재시도 로직을 분리하여 구성할 수 있어 사용하기 적합했
-습니다.
+비동기 처리 방식으로 @Async, WebFlux, 메시지 큐 등을 검토했습니다. WebFlux는 전체 시스템을 리액티브로 구성해야 했으며, 메시지 큐는 모놀리틱 아키텍
+처에서 불필요한 인프라 비용이 발생했습니다.
 
-재시도 로직을 구현하기 위해 RetryTemplate, Resilience4j, Retryable 등을 검토했습니다. 재시도 로직으로 인한 시스템 부하를 고려하여 Circuit Breaker
-패턴을 활용할 수 있는 Resilience4j 라이브러리를 선택하였습니다. 재시도 전략으로는 지수 백오프를 선택했습니다. 즉시 재시도는 Redis 장애 상황에서 부하를
-가중시킬 수 있었고, 고정 지연은 최적 대기 시간 설정이 어려웠습니다. 반면 지수 백오프는 2초, 4초, 8초로 간격을 늘려가며 시스템 회복 시간을 확보하고 급격한
-재시도를 방지할 수 있었습니다. 3번의 재시도 후에도 실패하면 실패 피드 테이블에 저장하였습니다.
-
-피드 생성 실패시 재시도 로직으로 인한 시스템 부하를 고려하여 Circuit Breaker 패턴을 적용했습니다. 1분간 50% 이상의 실패율이 발생하면 Circuit이 Open
-되어 Redis 호출을 차단하고 실패 피드 테이블에 바로 저장하도록 했습니다. 이를 통해 Redis 장애 상황에서 불필요한 재시도를 방지하여 시스템을 보호할 수 있
-었습니다.
-
-실패 피드의 복구는 스케줄러를 통해 진행하였습니다. 
-Circuit의 상태와 실패 피드의 존재 여부에 따라 스케줄러를 제어했습니다. 
-Circuit이 Open 상태일 때는 스케줄러를 중지하여 불필요한 재시도를 방지하고, Close 상태로 전환될 때 이벤트를 감지하여 스케줄러를 재가동했습니다.
-스케줄러가 가동되는 중에 한번에 많은 실패 피드를 병합하는 과정에서 Redis에 생기는 부하를 고려하여 
-페이징 처리를 통해 일정 주기로 일정 크기만큼 병합하게 구현하였습니다.
-또한 Close 상태에서 실패 피드가 없을 경우 스케줄러를 중지하여 불필요한 DB 조회를 방지했습니다. 
-이러한 전략을 통해 시스템 부하를 최소화하면서도 안정적인 피드 생성 복구가 가능했습니다.
+이에 따라 코드의 간결성과 관리의 용이성을 위해 @Async를 사용하여 피드 생성 작업을 비동기 처리하기로 하였습니다. 
+이때 톰캣의 기본 스레드 풀이 비동기 처리에 영향을 미치지 않도록 독립된 스레드 풀을 구성하여, 비동기 작업이 별도의 스레드에서 실행될 수 있도록 했습니다.
 
 결과적으로 게시글 등록과 피드 생성의 책임을 분리하여 사용자는 피드 생성 실패와 관계없이 즉시 게시글 등록 완료 응답을 받을 수 있게 되어 응답성이 개선되었고,
 시스템 리소스를 효율적으로 사용하면서도 모든 피드가 팔로워들에게 전파될 수 있도록 하여 게시글 작성자와 팔로워 모두의 사용자 경험을 개선하였습니다.
+
+- ### 피드 생성 장애 대처
+
+
 
 - ### 인플루언서 게시글로 인한 대규모 피드 생성 문제 개선
 많은 팔로워를 가진 인플루언서가 게시글을 등록 시 팔로워의 수만큼 피드를 저장해 발생하는 메모리 사용량 급증 문제를 해결하기 위한 최적화를 시도했습니다.
