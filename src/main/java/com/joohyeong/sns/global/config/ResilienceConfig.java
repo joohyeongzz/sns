@@ -1,8 +1,10 @@
 package com.joohyeong.sns.global.config;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.core.IntervalFunction;
+import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
 import io.lettuce.core.RedisConnectionException;
@@ -18,19 +20,14 @@ public class ResilienceConfig {
 
     @Bean
     @Primary
-    public CircuitBreakerRegistry circuitBreakerRegistry() {
+    public CircuitBreaker circuitBreaker() {
         CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
                 .failureRateThreshold(50)
-                .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.TIME_BASED)
-                .slidingWindowSize(60)
-                .minimumNumberOfCalls(5)
                 .waitDurationInOpenState(Duration.ofSeconds(60))
                 .permittedNumberOfCallsInHalfOpenState(3)
-                .recordExceptions(RedisConnectionException.class,
-                        RedisConnectionFailureException.class)
+                .slidingWindowSize(10)
                 .build();
-
-        return CircuitBreakerRegistry.of(circuitBreakerConfig);
+        return CircuitBreaker.of("redisPipeline",circuitBreakerConfig);
     }
 
     @Bean
@@ -44,5 +41,29 @@ public class ResilienceConfig {
                 .build();
 
         return RetryRegistry.of(config);
+    }
+
+    @Bean
+    public Retry redisPipelineRetry() {
+        RetryConfig retryConfig = RetryConfig.custom()
+                .maxAttempts(3)
+                .waitDuration(Duration.ofSeconds(1))
+                .retryExceptions(RedisConnectionFailureException.class)
+                .failAfterMaxAttempts(true)
+                .build();
+
+        return Retry.of("redisPipelineRetry", retryConfig);
+    }
+
+    @Bean
+    public CircuitBreaker redisPipelineCircuitBreaker() {
+        CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
+                .failureRateThreshold(50)
+                .waitDurationInOpenState(Duration.ofSeconds(10))
+                .slidingWindowSize(10)
+                .minimumNumberOfCalls(5)
+                .build();
+
+        return CircuitBreaker.of("redisPipelineCircuitBreaker", circuitBreakerConfig);
     }
 }

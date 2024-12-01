@@ -17,65 +17,88 @@ import com.joohyeong.sns.user.exception.UserErrorCode;
 import com.joohyeong.sns.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.StringRedisConnection;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
 @Log4j2
 public class PostService {
-
     private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final MediaRepository mediaRepository;
     private final FeedService feedService;
     private final StringRedisTemplate stringRedisTemplate;
     private final RedisTemplate<String,PostCache> postRedisTemplate;
+    private final PostMapper postMapper;
 
-
+    @Transactional
     public void createPost(PostRequest request) {
 
-        Post post = savePostToDB(100L,request.getContent());
+        long userId = 100L;
 
-        Media media = saveMediaToDB(request.getMediaUrls(),post);
+        Post post = savePostToDB(userId,request.getContent());
 
-//        if (post.getUser().isInfluencer()) {
-//            postRepository.save(post);
-//        } else {
-//            feedService.addFeedAsync(post);
-//        }
+//        Media media = saveMediaToDB(request.getMediaUrls(),post);
 
-        PostCache postCache = PostCache.builder()
-                .postId(post.getId())
-                .userId(100L)
-                .content(post.getContent())
-                .username("asd")
-                .urls(request.getMediaUrls())
-                .createdAt("asd")
-                .build();
+//        PostCache postCache = postMapper.mapToPostCache(post,100L,request.getMediaUrls());
+//        savePostCaches(post.getId(),postCache);
 
-        stringRedisTemplate.opsForValue().set("postId:"+post.getId(), String.valueOf(postCache));
+        if (!post.getUser().isInfluencer()) {
+            feedService.addFeed(post.getId(), userId);
+        }
 
-        stringRedisTemplate.opsForValue().set("postLike:"+post.getId(), "0");
+    }
 
-        stringRedisTemplate.opsForValue().set("commentIndex:"+post.getId(), "0");
+    public void savePostCaches(long postId, PostCache postCache) {
+        List<Object> result = stringRedisTemplate.executePipelined(
+                new RedisCallback<Object>() {
+                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
+                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
 
+                        stringRedisConn.set("postId:" + postId, String.valueOf(postCache));
+                        stringRedisConn.set("postLike:" + postId, "0");
+                        stringRedisConn.set("commentIndex:" + postId, "0");
+
+                        return null;
+                    }
+                });
+    }
+
+    public void test() {
+        log.info("메인 메서드 실행. Thread Name: {}", Thread.currentThread().getName());
+
+
+        log.info("메인 메서드 종료. Thread Name: {}", Thread.currentThread().getName());
     }
 
 
 
-    @Transactional
-    protected Post savePostToDB(long userId, String content) {
+    public Post savePostToDB(long userId, String content) {
+        log.info("하이");
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new GlobalException(UserErrorCode.NOT_FOUND_USER));
         Post post = new Post(user, content);
         postRepository.save(post);
         return post;
     }
+
+    @Transactional
+    public String test(long postId) {
+        Post post = postRepository.findById(postId).orElse(null);
+        return post.getContent();
+    }
+
 
     @Transactional
     protected Media saveMediaToDB(List<String> fileUrls, Post post) {

@@ -39,3 +39,4 @@ out/
 /mysql
 /redis
 /metric
+/src/main/java/com/joohyeong/sns/global/config/AwsConfig.java

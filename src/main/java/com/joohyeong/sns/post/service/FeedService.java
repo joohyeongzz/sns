@@ -2,9 +2,7 @@ package com.joohyeong.sns.post.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.joohyeong.sns.global.exception.ErrorCodeType;
 import com.joohyeong.sns.global.exception.GlobalException;
-import com.joohyeong.sns.post.domain.FailedFeed;
 import com.joohyeong.sns.post.domain.Media;
 import com.joohyeong.sns.post.domain.Post;
 import com.joohyeong.sns.post.dto.response.FeedDATA;
@@ -12,23 +10,12 @@ import com.joohyeong.sns.post.dto.response.FeedDetailResponse;
 import com.joohyeong.sns.post.dto.response.PostCache;
 import com.joohyeong.sns.post.exception.PostErrorCode;
 import com.joohyeong.sns.post.mapper.FeedMapper;
-import com.joohyeong.sns.post.repository.FailedFeedRepository;
 import com.joohyeong.sns.post.repository.PostRepository;
 import com.joohyeong.sns.user.domain.User;
 import com.joohyeong.sns.user.exception.UserErrorCode;
 import com.joohyeong.sns.user.repository.FollowRepository;
 import com.joohyeong.sns.user.repository.UserRepository;
 
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import io.github.resilience4j.retry.Retry;
-import io.github.resilience4j.retry.RetryConfig;
-import io.github.resilience4j.retry.RetryRegistry;
-import io.lettuce.core.RedisConnectionException;
-import io.lettuce.core.RedisFuture;
-import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.dao.DataAccessException;
@@ -36,103 +23,66 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.StringRedisConnection;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.*;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.SimpleDateFormat;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 @Log4j2
 @RequiredArgsConstructor
 public class FeedService {
 
-    private static final int EXPIRATION_DAYS = -7;
-    private static final String FEED_KEY_PREFIX = "feed:userId:";
-    private static final int BATCH_SIZE = 500;
-    private final RedisTemplate<String, String> feedRedisTemplate;
+    public static final int EXPIRATION_DAYS = -7;
+    public static final String FEED_KEY_PREFIX = "feed:userId:";
+    public static final int BATCH_SIZE = 500;
 
-    private final FeedMapper feedMapper;
-    private final PostRepository postRepository;
-    private final UserRepository userRepository;
-    private final FollowRepository followRepository;
-    private final CircuitBreakerRegistry circuitBreakerRegistry;
-    private final RetryRegistry retryRegistry;
-    private final FailedFeedRepository failedFeedRepository;
-    private final StringRedisTemplate stringRedisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public final RedisTemplate<String, String> feedRedisTemplate;
+    public final FeedMapper feedMapper;
+    public final PostRepository postRepository;
+    public final UserRepository userRepository;
+    public final FollowRepository followRepository;
+    public final StringRedisTemplate stringRedisTemplate;
+    public final ObjectMapper objectMapper = new ObjectMapper();
+    public final Executor asyncExecutor;
+    public final FeedRedisService feedRedisService;
 
 
-    private User findUserById(long userId) {
+    @Async("asyncExecutor")
+    public void addFeed(long postId, long userId) {
+
+        List<Long> followerIds = getFollowerIds(userId);
+
+        String currentTimeStamp = getCurrentTimeStamp();
+        String feedValue = formatPostForRedis(postId, currentTimeStamp, false);
+
+        log.info(followerIds);
+
+        log.info(feedValue);
+
+        feedRedisService.addFeedInRedisPipeLine(followerIds,postId,feedValue);
+
+    }
+
+
+    public List<Long> getFollowerIds(long userId) {
+        return followRepository.findFollowerUserIds(userId);
+    }
+
+    public User findUserById(long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new GlobalException(UserErrorCode.NOT_FOUND_USER));
-    }
-
-    @PostConstruct
-    public void initRetryEventListener() {
-        retryRegistry.retry("feedRetry").getEventPublisher()
-                .onRetry(event -> log.info("재시도 횟수: {}", event.getNumberOfRetryAttempts()))
-                .onError(event -> log.error("재시도 실패: {}", event.getLastThrowable().getMessage()));
-    }
-
-
-    @Transactional
-    public void addFeedWithRetry(Post post) throws RedisConnectionFailureException {
-        Retry retry = retryRegistry.retry("feedRetry");
-        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("feedCircuitBreaker");
-        String postWithDate = formatPostForRedis(post.getId(), generateExpiredTimestamp(), false);
-        List<Long> followerIds = followRepository.findFollowerUserIds(post.getUser().getId());
-        Supplier<Void> supplier = CircuitBreaker.decorateSupplier(circuitBreaker, () -> {
-            try {
-                addRegularUserFeed(postWithDate, followerIds, post.getId(), 500);
-            } catch (RedisConnectionFailureException e) {
-                throw e;
-            }
-            return null;
-        });
-        retry.executeSupplier(supplier);
-    }
-
-
-
-    public void addRegularUserFeed(String postWithDate, List<Long> followerIds, Long postId, int batchSize)
-            throws RedisConnectionFailureException {
-        try {
-            for (int i = 0; i < followerIds.size(); i += batchSize) {
-                int end = Math.min(i + batchSize, followerIds.size());
-                List<Long> batchFollowerIds = followerIds.subList(i, end);
-
-                List<Object> cachedPosts = stringRedisTemplate.executePipelined(
-                        new RedisCallback<Object>() {
-                            public Object doInRedis(RedisConnection connection) throws DataAccessException {
-                                StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
-                                for (long followerId : batchFollowerIds) {
-                                    String feedKey = generateFeedKey(followerId);
-                                    stringRedisConn.zAdd(feedKey, postId, postWithDate);
-                                }
-                                return null;
-                            }
-                        });
-            }
-        } catch (RedisConnectionFailureException e) {
-            log.error("Redis 피드 일괄 추가 실패 - 팔로워 수: {}", followerIds.size(), e);
-            throw new RedisConnectionFailureException("Redis 파이프라인 작업 실패", e);
-        }
     }
 
 
@@ -300,18 +250,8 @@ public class FeedService {
         }
 
         long cacheStartTime = System.currentTimeMillis();
-        List<Object> cachedPosts = stringRedisTemplate.executePipelined(
-                new RedisCallback<Object>() {
-                    public Object doInRedis(RedisConnection connection) throws DataAccessException {
-                        StringRedisConnection stringRedisConn = (StringRedisConnection) connection;
-
-                        for (Long postId : postIds) {
-                            stringRedisConn.get("postId:" + postId);
-                        }
-
-                        return null;
-                    }
-                });
+//        List<Object> cachedPosts = feedRedisService.getCachedPosts(postIds);
+        List<Object> cachedPosts = new ArrayList<>();
         log.info("캐시 데이터 조회 실행 시간: {}ms", System.currentTimeMillis() - cacheStartTime);
 
         List<PostCache> postCacheList = cachedPosts.stream()
@@ -474,7 +414,7 @@ public class FeedService {
     }
 
 
-    private Page<FeedDetailResponse> getFeedFromNewInfluencerPosts(long followerId, List<Long> influencerIds, int page, int size) {
+    public Page<FeedDetailResponse> getFeedFromNewInfluencerPosts(long followerId, List<Long> influencerIds, int page, int size) {
         // 최근 인플루언서의 게시물을 가져옴
         Page<Post> influencerRecentPostList = getRecentInfluencerPosts(influencerIds, page, size);
 
@@ -492,13 +432,13 @@ public class FeedService {
         );
     }
 
-    private Page<Post> getRecentInfluencerPosts(List<Long> influencerIds, int page, int size) {
+    public Page<Post> getRecentInfluencerPosts(List<Long> influencerIds, int page, int size) {
         LocalDateTime thresholdDate = LocalDateTime.now().minusDays(3);
         Pageable pageable = PageRequest.of(page, size);
         return postRepository.findRecentInfluencerPost(influencerIds, thresholdDate, pageable);
     }
 
-    private void updateRedisWithRecentPosts(long followerId, List<Post> posts) {
+    public void updateRedisWithRecentPosts(long followerId, List<Post> posts) {
         String newTimeStamp = generateNewTimestamp();
         for (Post post : posts) {
             String postWithDate = formatPostForRedis(post.getId(), newTimeStamp, false);
@@ -515,7 +455,7 @@ public class FeedService {
                 @Override
                 public Object execute(RedisOperations operations) throws DataAccessException {
                     for (long postId : postIds) {
-                        String postWithDate = formatPostForRedis(postId, getCurrentTimestamp(), false);
+                        String postWithDate = formatPostForRedis(postId, getCurrentTimeStamp(), false);
                         // score는 postId, value는 포맷된 문자열
                         operations.opsForZSet().add(feedKey, postWithDate, postId);
                     }
@@ -571,7 +511,7 @@ public class FeedService {
 
     public void deleteExpiredFeedPosts(String key) {
         List<String> posts = feedRedisTemplate.opsForList().range(key, 0, -1);
-        String currentTimeStamp = getCurrentTimestamp();
+        String currentTimeStamp = getCurrentTimeStamp();
         String expiredTimeStamp = generateExpiredTimestamp();
 
         if (posts != null) {
@@ -584,43 +524,48 @@ public class FeedService {
         }
     }
 
-    private boolean isExpired(String timeStamp, String currentTimeStamp, String expiredTimeStamp) {
+    public boolean isExpired(String timeStamp, String currentTimeStamp, String expiredTimeStamp) {
         return timeStamp.compareTo(currentTimeStamp) < 0 && timeStamp.compareTo(expiredTimeStamp) < 0;
     }
 
-    private String generateFeedKey(long followerId) {
+
+    public String getCurrentTimeStamp() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHH");
+        LocalDateTime now = LocalDateTime.now();
+
+        return now.format(formatter);
+    }
+
+    public String generateFeedKey(long followerId) {
         return FEED_KEY_PREFIX + followerId;
     }
 
-    private String getCurrentTimestamp() {
-        return new SimpleDateFormat("yyyyMMddHH").format(new Date());
-    }
 
-    private String generateNewTimestamp() {
+    public String generateNewTimestamp() {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHH");
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime oneWeekAgo = now.minusDays(6);
         return oneWeekAgo.format(formatter);
     }
 
-    private String generateExpiredTimestamp() {
+    public String generateExpiredTimestamp() {
         Calendar calendar = Calendar.getInstance();
         calendar.add(Calendar.DAY_OF_MONTH, EXPIRATION_DAYS);
         return new SimpleDateFormat("yyyyMMddHH").format(calendar.getTime());
     }
 
-    private String formatPostForRedis(long postId, String timestamp, boolean isRead) {
+    public String formatPostForRedis(long postId, String timestamp, boolean isRead) {
         return postId + ":" + timestamp + ":" + isRead;
     }
 
-    private long getMinPostId(Page<Map<Long, String>> postIds) {
+    public long getMinPostId(Page<Map<Long, String>> postIds) {
         return postIds.stream()
                 .flatMap(map -> map.keySet().stream()) // 각 Map의 키(Long)를 스트림으로 변환
                 .min(Long::compareTo)  // 최소값을 찾음
                 .orElse(Long.MAX_VALUE);  // 값이 없으면 Long.MAX_VALUE를 반환
     }
 
-    private Post findPostWithDetails(Long postId) {
+    public Post findPostWithDetails(Long postId) {
         return postRepository.findPostWithDetails(postId).orElseThrow(() -> new GlobalException(PostErrorCode.NOT_FOUND_POST));
     }
 
