@@ -402,6 +402,18 @@ AOP 로직은 파이프라인을 열고, 커넥션을 ThreadLocal을 이용해 c
     }
 
 
+    // 피드 생성 메서드
+    @RetryCircuit
+    @RedisRecovery
+    @RedisPipeline
+    public void addFeedInRedisPipeLine(List<Long> followerIds, long postId, String feedValue) {
+        StringRedisConnection connection = RedisPipelineContext.getConnection();
+        for (Long followerId : followerIds) {
+            connection.zAdd(generateFeedKey(followerId), postId, feedValue);
+        }
+    }
+
+
 
 # AWS S3 기반 PreSigned URL 활용 파일 업로드 로직 개선
 AWS S3를 활용한 파일 업로드 로직 구현 과정에서 성능 개선이 필요했습니다. 
