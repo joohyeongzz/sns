@@ -326,12 +326,76 @@ AOP 로직은 파이프라인을 열고, 커넥션을 ThreadLocal을 이용해 c
     
 이로써 파이프라이닝 처리가 필요한 로직을 재사용 가능하게 만들고, 중복 코드를 제거하여 코드의 유지보수성을 높였습니다.
 
-- ### 재시도 + 서킷 브레이커 패턴 결합
-Resilience4j의 재시도 + 서킷 브레이커 로직은 코드에 명시하여 작성하거나, 어노테이션을 통해 추상화할 수 있었습니다.
-하지만, 재시도 어노테이션과 서킷 브레이커 어노테이션을 각각 독립적으로 사용해야 했고, ~~
+- ### 복구 작업 추가 로직 분리
+
+기존에는 재시도와 서킷 브레이커 AOP 로직에서 최종 실패 시, joinPoint의 메서드명을 확인하여 복구 작업을 추가하고자 하는 메서드에만 이를 적용했습니다.
+대표적으로 피드 생성 실패 시 복구 작업을 추가하도록 작성하였습니다. 하지만 서비스가 커져감에 따라 복구 작업을 추가하고자 하는 메서드가 늘어날 수 있다는 문제를 인식했습니다.
+재시도 로직과 복구 작업 추가 로직이 강하게 결합되었고, 복구해야 할 메서드가 늘어날수록 if 문이 무한히 증가하여 유지보수가 어려워지는 문제가 발생했습니다.
+이를 해결하기 위해 복구 작업을 수행하는 어노테이션을 작성하고, AOP 로직을 분리하여 복구가 필요한 메서드에만 어노테이션을 설정하도록 변경했습니다.
+또한, 복구 작업 추가, 재시도, 파이프라이닝 등 여러 AOP를 활용할 때에는 @Order 어노테이션을 설정하여 AOP 실행 순서를 제어하였습니다.
+결과적으로 코드의 확장성과 유지보수성이 크게 향상되었으며, 새로운 복구 작업을 추가하거나 AOP 로직을 수정하는 과정이 훨씬 수월해졌습니다.
 
 
+    // 강하게 결합된 기존 코드
+    @Around("@annotation(RetryCircuit)")
+    public Object retryCircuit(ProceedingJoinPoint joinPoint) {
+        try {
+            return retry.executeSupplier(() ->
+                    circuitBreaker.executeSupplier(() -> {
+                        try {
+                            return joinPoint.proceed();
+                        } catch (Throwable e) {
+                            if (e instanceof RedisConnectionFailureException) {
+                                throw (RedisConnectionFailureException) e;
+                            }
+                            throw new RuntimeException(e);
+                        }
+                    })
+            );
+        } catch (RedisConnectionFailureException e) {
+            if (isSpecificMethod(joinPoint)) {
+                log.info("피드 생성 작업입니다. 작업을 큐에 추가합니다.");
+                redisWorkQueue.enqueue(joinPoint);
+            } else {
+                log.info("피드 생성 작업이 아닙니다. 작업을 큐에 추가하지 않습니다.");
+            }
+            return null;
+        }
+    }
 
+    // 분리된 재시도 로직과 복구 작업 추가 로직
+    
+    @Around("@annotation(RetryCircuit)")
+    public Object retryCircuit(ProceedingJoinPoint joinPoint) {
+        try {
+            return retry.executeSupplier(() ->
+                    circuitBreaker.executeSupplier(() -> {
+                        try {
+                            return joinPoint.proceed();
+                        } catch (Throwable e) {
+                            if (e instanceof RedisConnectionFailureException) {
+                                throw (RedisConnectionFailureException) e;
+                            }
+                            throw new RuntimeException(e);
+                        }
+                    })
+            );
+        } catch (RedisConnectionFailureException e) {
+            throw e;
+        }
+    }
+
+    @Around("@annotation(RedisRecovery)")
+    public Object recoveryWorkEnqueue(ProceedingJoinPoint joinPoint) {
+        try {
+            return joinPoint.proceed();
+        } catch (Throwable e) {
+            if (e instanceof RedisConnectionFailureException) {
+                redisWorkQueue.enqueue(joinPoint);
+            }
+        }
+        return null;
+    }
 
 
 
