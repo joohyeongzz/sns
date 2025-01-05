@@ -3,11 +3,9 @@
 - SNS 백엔드 프로젝트
 - 단순 기능 구현 뿐만이 아닌 확장성, 장애 대처, 유지보수성을 고려하여 구현하는 것을 목표로 개발하였습니다.
 
-
-
 ## ✅ 사용 기술 및 개발 환경
 
-Java, Spring Boot, MySQL, JPA, Redis 등
+Java, Spring Boot, MySQL, JPA, Redis, Docker 등
 
 ## ✅ Architecture
 
