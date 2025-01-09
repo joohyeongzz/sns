@@ -9,6 +9,11 @@ Java, Spring Boot, MySQL, JPA, Redis, Docker 등
 
 ## ✅ Architecture
 
+- ### Service Architecture
+
+![스크린샷 2025-01-09 130633](https://github.com/user-attachments/assets/8166c85a-09da-471d-bad2-e55b8472b69f)
+
+
 - ### MySQL Architecture
   
 ![스크린샷 2024-12-19 125432](https://github.com/user-attachments/assets/f84fce70-f977-4d90-9797-9a0a6d932f76)
