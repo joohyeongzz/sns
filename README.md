@@ -40,16 +40,18 @@ Java, Spring Boot, MySQL, JPA, Redis, Docker 등
 
 ## ✅ 주요 고려 사항
 
-### 1. 인프라의 확장성 👉[Click](https://github.com/joohyeongzz/SNS/wiki/1.-%EC%9D%B8%ED%94%84%EB%9D%BC%EC%9D%98-%ED%99%95%EC%9E%A5%EC%84%B1).
+### 피드 조회 로직 개선 👉[Click](https://durian-1.tistory.com/16).
 
-### 2. Redis 기반 피드 관리 전략 👉[Click](https://github.com/joohyeongzz/SNS/wiki/2.-Redis-%EA%B8%B0%EB%B0%98-%ED%94%BC%EB%93%9C-%EA%B4%80%EB%A6%AC-%EC%A0%84%EB%9E%B5).
+### 인프라의 확장성 👉[Click](https://github.com/joohyeongzz/SNS/wiki/1.-%EC%9D%B8%ED%94%84%EB%9D%BC%EC%9D%98-%ED%99%95%EC%9E%A5%EC%84%B1).
 
-### 3. Redis 활용 성능 개선 👉[Click](https://github.com/joohyeongzz/SNS/wiki/3.-Redis-%ED%99%9C%EC%9A%A9-%EC%84%B1%EB%8A%A5-%EA%B0%9C%EC%84%A0).
+### Redis 기반 피드 관리 전략 👉[Click](https://github.com/joohyeongzz/SNS/wiki/2.-Redis-%EA%B8%B0%EB%B0%98-%ED%94%BC%EB%93%9C-%EA%B4%80%EB%A6%AC-%EC%A0%84%EB%9E%B5).
 
-### 4. Redis 장애 대처 👉[Click](https://github.com/joohyeongzz/SNS/wiki/4.-Redis-%EC%9E%A5%EC%95%A0-%EB%8C%80%EC%B2%98).
+### Redis 활용 성능 개선 👉[Click](https://github.com/joohyeongzz/SNS/wiki/3.-Redis-%ED%99%9C%EC%9A%A9-%EC%84%B1%EB%8A%A5-%EA%B0%9C%EC%84%A0).
 
-### 5. AOP 활용 중복 코드 최소화 및 관심사 분리 👉[Click](https://github.com/joohyeongzz/SNS/wiki/5.-AOP-%ED%99%9C%EC%9A%A9-%EC%A4%91%EB%B3%B5-%EC%BD%94%EB%93%9C-%EC%B5%9C%EC%86%8C%ED%99%94-%EB%B0%8F-%EA%B4%80%EC%8B%AC%EC%82%AC-%EB%B6%84%EB%A6%AC).
+### Redis 장애 대처 👉[Click](https://github.com/joohyeongzz/SNS/wiki/4.-Redis-%EC%9E%A5%EC%95%A0-%EB%8C%80%EC%B2%98).
 
-### 6. AWS S3 기반 PreSigned URL 활용 파일 업로드 로직 개선 👉[Click](https://github.com/joohyeongzz/SNS/wiki/6.-AWS-S3-%EA%B8%B0%EB%B0%98-PreSigned-URL-%ED%99%9C%EC%9A%A9-%ED%8C%8C%EC%9D%BC-%EC%97%85%EB%A1%9C%EB%93%9C-%EB%A1%9C%EC%A7%81-%EA%B0%9C%EC%84%A0).
+### AOP 활용 중복 코드 최소화 및 관심사 분리 👉[Click](https://github.com/joohyeongzz/SNS/wiki/5.-AOP-%ED%99%9C%EC%9A%A9-%EC%A4%91%EB%B3%B5-%EC%BD%94%EB%93%9C-%EC%B5%9C%EC%86%8C%ED%99%94-%EB%B0%8F-%EA%B4%80%EC%8B%AC%EC%82%AC-%EB%B6%84%EB%A6%AC).
 
-### 7. 서버 모니터링 및 경고 알림 👉[Click](https://github.com/joohyeongzz/SNS/wiki/7.-%EC%84%9C%EB%B2%84-%EB%AA%A8%EB%8B%88%ED%84%B0%EB%A7%81-%EB%B0%8F-%EA%B2%BD%EA%B3%A0-%EC%95%8C%EB%A6%BC).
+### AWS S3 기반 PreSigned URL 활용 파일 업로드 로직 개선 👉[Click](https://github.com/joohyeongzz/SNS/wiki/6.-AWS-S3-%EA%B8%B0%EB%B0%98-PreSigned-URL-%ED%99%9C%EC%9A%A9-%ED%8C%8C%EC%9D%BC-%EC%97%85%EB%A1%9C%EB%93%9C-%EB%A1%9C%EC%A7%81-%EA%B0%9C%EC%84%A0).
+
+### 서버 모니터링 및 경고 알림 👉[Click](https://github.com/joohyeongzz/SNS/wiki/7.-%EC%84%9C%EB%B2%84-%EB%AA%A8%EB%8B%88%ED%84%B0%EB%A7%81-%EB%B0%8F-%EA%B2%BD%EA%B3%A0-%EC%95%8C%EB%A6%BC).
